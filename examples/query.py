@@ -1,5 +1,7 @@
 import argparse
 
+from pprint import pprint as print
+
 from openark import OpenArk
 
 
@@ -9,19 +11,14 @@ if __name__ == '__main__':
         description='OpenARK Python',
     )
     parser.add_argument(
-        'model',
+        'query',
         type=str,
-        help='model name',
-    )
-    parser.add_argument(
-        'filename',
-        type=str,
-        help='a file name to store data',
+        help='a SQL query to be executed',
     )
 
     args = parser.parse_args()
     ark = OpenArk()
-    model = ark.get_model(args.model)
+    models = ark.get_global_models()
 
-    pl = model.to_polars()
-    pl.write_csv(args.filename)
+    df = models.sql(args.query).collect()
+    print(df)

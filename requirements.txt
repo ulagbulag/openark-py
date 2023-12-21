@@ -1,4 +1,7 @@
 deltalake
 dotenv
+inflection
+kubernetes
 nats-py
 polars
+pprint
