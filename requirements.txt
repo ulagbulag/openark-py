@@ -1,5 +1,4 @@
 deltalake
-dotenv
 inflection
 ipython
 kubernetes
@@ -7,5 +6,5 @@ matplotlib
 nats-py
 networkx
 polars
-pprint
+python-dotenv
 seaborn

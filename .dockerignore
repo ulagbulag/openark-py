@@ -182,6 +182,11 @@ cython_debug/
 /Containerfile*
 /Dockerfile*
 
+# Dev
+/**/.env
+/**/.token
+*.csv
+
 # Editor
 /.hypothesis/
 /.vscode/
