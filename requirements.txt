@@ -1,0 +1,4 @@
+deltalake
+dotenv
+nats-py
+polars
