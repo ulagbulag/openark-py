@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     ark = OpenArk()
-    models = ark.get_global_models()
+    models = ark.get_global_namespace()
 
     df = models.sql(args.query).collect()
     print(df)

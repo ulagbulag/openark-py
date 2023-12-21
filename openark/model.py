@@ -1,14 +1,16 @@
 import base64
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import deltalake as dt
 import inflection
 import kubernetes as kube
 import polars as pl
 
+from openark import drawer
 
-class OpenArkGlobalModels:
+
+class OpenArkGlobalNamespace:
     def __init__(self, namespace: str) -> None:
         self._ctx = pl.SQLContext()
         self._namespace = namespace
@@ -33,6 +35,13 @@ class OpenArkGlobalModels:
 
     def sql(self, query: str) -> pl.LazyFrame:
         return self._ctx.execute(query)
+
+    def sql_and_draw(self, query: str, style: Optional[str] = None) -> None:
+        # collect data frame
+        lf = self.sql(query)
+
+        # draw
+        drawer.draw(lf, style)
 
 
 class OpenArkModel:
@@ -75,17 +84,18 @@ class OpenArkModel:
                 'name': 'object-storage-user-0',
             }
 
-        def decode_secret(key: str) -> str:
-            return base64.standard_b64decode(
-                secret.data[secret_ref[key]].encode('ascii'),
-            ).decode('ascii')
-
         # load account secret
         api = kube.client.CoreV1Api()
         secret = api.read_namespaced_secret(
             name=secret_ref['name'],
             namespace=namespace,
         )
+
+        def decode_secret(key: str) -> str:
+            return base64.standard_b64decode(
+                secret.data[secret_ref[key]].encode('ascii'),
+            ).decode('ascii')
+
         storage_options = {
             'AWS_ACCESS_KEY_ID': decode_secret('mapAccessKey'),
             'AWS_ENDPOINT_URL': endpoint,

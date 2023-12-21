@@ -1,7 +1,11 @@
 deltalake
 dotenv
 inflection
+ipython
 kubernetes
+matplotlib
 nats-py
+networkx
 polars
 pprint
+seaborn
