@@ -173,7 +173,7 @@ cython_debug/
 /**/.env
 
 # Documentation
-**/*.md
+/CHANGELOG.md
 /docs/
 
 # Dockerfile

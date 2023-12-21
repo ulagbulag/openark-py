@@ -9,22 +9,21 @@ ARG PYTHON_VERSION="3.12-bookworm"
 FROM "docker.io/library/python:${PYTHON_VERSION}" as server
 
 # Install dependencies
-# FIXME: detach builder from server
-ADD ./requirements.txt /requirements.txt
 RUN apt-get update && apt-get install -y \
     # Install core dependencies
-    cargo \
+    findutils \
     # Install build dependencies
-    findutils && \
-    # Install python build dependencies
-    python -m pip install --no-cache-dir setuptools_rust && \
-    # Install python dependencies
-    python -m pip install --no-cache-dir --requirement /requirements.txt && \
+    cargo && \
     # Cleanup
-    find /usr -type d -name '*__pycache__' -prune -exec rm -rf {} \; && \
-    rm /requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
-# Add source codes
-ADD ./ /opt/openark
-WORKDIR /opt/openark
+# Install it as a package
+ADD ./ /usr/src
+WORKDIR /usr/src
+RUN pip install . && \
+    # Cleanup
+    rm -rf /usr/src && \
+    find /usr -type d -name '*__pycache__' -prune -exec rm -rf {} \;
+
+# Cleanup
+WORKDIR /

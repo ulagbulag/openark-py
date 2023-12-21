@@ -1,0 +1,55 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[project]
+name = "openark"
+version = "0.0.1"
+dependencies = [
+    "deltalake",
+    "inflection",
+    "ipython",
+    "kubernetes",
+    "matplotlib",
+    "nats-py",
+    "networkx",
+    "polars[deltalake]",
+    "python-dotenv",
+    "seaborn",
+]
+requires-python = ">=3.10"
+authors = [{ name = "Ho Kim", email = "ho.kim@ulagbulag.io" }]
+maintainers = [{ name = "Ho Kim", email = "ho.kim@ulagbulag.io" }]
+description = "OpenARK Python Client"
+readme = { file = "./README.md", content-type = "text/markdown" }
+license = { text = "GPL-3.0-or-later WITH Classpath-exception-2.0" }
+keywords = ["Connected Data Lake", "iac", "kubernetes", "openark"]
+classifiers = [
+    # How mature is this project? Common values are
+    #   3 - Alpha
+    #   4 - Beta
+    #   5 - Production/Stable
+    "Development Status :: 3 - Alpha",
+
+    # Pick your license as you wish (see also "license" above)
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+
+    # Specify the Python versions you support here.
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+]
+
+[project.entry-points]
+
+[project.gui-scripts]
+
+[project.optional-dependencies]
+
+[project.scripts]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/ulagbulag/openark-py/issues"
+Changelog = "https://github.com/ulagbulag/openark-py/blob/master/CHANGELOG.md"
+Documentation = "https://github.com/ulagbulag/openark-py"
+Homepage = "https://github.com/ulagbulag/openark-py"
+Repository = "https://github.com/ulagbulag/openark-py.git"
