@@ -1,10 +1,12 @@
 import base64
+import json
 import logging
 from typing import Any, Dict, Optional
 
 import deltalake as dt
 import inflection
 import kubernetes as kube
+import nats
 import polars as pl
 
 from openark import drawer
@@ -121,6 +123,45 @@ class OpenArkModel:
             source=self._table_uri,
             storage_options=self._storage_options,
         )
+
+
+class OpenArkModelChannel:
+    def __init__(
+        self,
+        name: str,
+        nc: nats.NATS,
+        queued: bool,
+    ) -> None:
+        self._name = name
+        self._nc = nc
+        self._queued = queued
+
+    def __aiter__(self) -> 'OpenArkModelSubscriber':
+        return OpenArkModelSubscriber(self)
+
+
+class OpenArkModelSubscriber:
+    def __init__(
+        self,
+        channel: OpenArkModelChannel,
+    ) -> None:
+        self._channel = channel
+        self._subscriber = None
+
+    async def __anext__(self) -> Any:
+        if self._subscriber is None:
+            self._subscriber = await self._channel._nc.subscribe(
+                subject=self._channel._name,
+                queue=self._channel._name if self._channel._queued else '',
+            )
+
+        while True:
+            msg = await self._subscriber.next_msg(timeout=None)
+            try:
+                decoded = json.loads(msg.data)
+            except json.decoder.JSONDecodeError:
+                continue
+            return decoded
 
 
 def _load_models(kube: kube.client.CustomObjectsApi, namespace: str) -> list[tuple[OpenArkModel, str]]:

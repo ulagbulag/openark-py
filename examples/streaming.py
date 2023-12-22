@@ -1,7 +1,14 @@
 import argparse
+import asyncio
 from pprint import pprint as print
 
 from openark import OpenArk
+
+
+async def print_data(ark):
+    mc = await ark.get_model_channel(args.model)
+    async for data in mc:
+        print(data)
 
 
 if __name__ == '__main__':
@@ -10,14 +17,12 @@ if __name__ == '__main__':
         description='OpenARK Python',
     )
     parser.add_argument(
-        'query',
+        'model',
         type=str,
-        help='a SQL query to be executed',
+        help='model name',
     )
 
     args = parser.parse_args()
     ark = OpenArk()
-    models = ark.get_global_namespace()
 
-    df = models.sql(args.query).collect()
-    print(df)
+    asyncio.run(print_data(ark))

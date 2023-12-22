@@ -1,10 +1,8 @@
 import ast
+from pprint import pprint as print
 from typing import Any, Optional
 
-from matplotlib.axes import Axes
 import polars as pl
-# from pprint import pprint as print
-import seaborn as sns
 
 from openark.drawer import timeseries
 
