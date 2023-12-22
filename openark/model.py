@@ -135,9 +135,34 @@ class OpenArkModelChannel:
         self._name = name
         self._nc = nc
         self._queued = queued
+        self._reply = ''
 
     def __aiter__(self) -> 'OpenArkModelSubscriber':
         return OpenArkModelSubscriber(self)
+
+    def publish(self) -> 'OpenArkModelPublisher':
+        return OpenArkModelPublisher(self)
+
+
+class OpenArkModelPublisher:
+    def __init__(
+        self,
+        channel: OpenArkModelChannel,
+    ) -> None:
+        self._channel = channel
+
+    def __enter__(self) -> 'OpenArkModelPublisher':
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        pass
+
+    async def send_one(self, message: Any) -> None:
+        return await self._channel._nc.publish(
+            subject=self._channel._name,
+            payload=json.dumps(message).encode('utf-8'),
+            reply=self._channel._reply,
+        )
 
 
 class OpenArkModelSubscriber:
@@ -158,7 +183,7 @@ class OpenArkModelSubscriber:
         while True:
             msg = await self._subscriber.next_msg(timeout=None)
             try:
-                decoded = json.loads(msg.data)
+                decoded = json.loads(msg.data.decode('utf-8'))
             except json.decoder.JSONDecodeError:
                 continue
             return decoded
