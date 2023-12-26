@@ -4,11 +4,11 @@ from typing import Any, Optional
 
 import polars as pl
 
-from openark.drawer import timeseries
+from openark.drawer import lineplot
 
 # Define all supported styles
 _ALL_STYLES = {
-    'timeseries': timeseries.draw,
+    'lineplot': lineplot.draw,
 }
 
 
