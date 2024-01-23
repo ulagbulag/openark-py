@@ -310,9 +310,9 @@ class OpenArkModelSubscriber:
 def _load_models(kube: kube.client.CustomObjectsApi, namespace: str) -> list[tuple[OpenArkModel, str]]:
     bindings = kube.list_namespaced_custom_object(
         group='dash.ulagbulag.io',
+        plural='modelstoragebindings',
         version='v1alpha1',
         namespace=namespace,
-        plural='modelstoragebindings',
     )['items']
 
     models = []

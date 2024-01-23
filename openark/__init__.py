@@ -7,12 +7,14 @@ from IPython import get_ipython
 import kubernetes as kube
 import nats
 
+from openark.function import OpenArkFunction
 from openark.magic import OpenArkMagic
 from openark.model import OpenArkGlobalNamespace, OpenArkModel, OpenArkModelChannel
 
 
 __all__ = [
     'OpenArk',
+    'OpenArkFunction',
     'OpenArkModel',
     'OpenArkStream',
 ]
@@ -99,6 +101,41 @@ class OpenArk:
                 namespace=self._namespace,
             )
         return self._global_namespace
+
+    async def get_function(self, name: str, timeout: int = 10) -> OpenArkFunction:
+        # get function metadata
+        api = kube.client.CustomObjectsApi()
+        data = api.get_namespaced_custom_object(
+            group='dash.ulagbulag.io',
+            plural='functions',
+            version='v1alpha1',
+            name=name,
+            namespace=self._namespace,
+        )
+
+        return OpenArkFunction(
+            data=data,
+            nc=await self._load_nats_channel(),
+            queued=os.environ.get('PIPE_QUEUE_GROUP', 'false') == 'true',
+            storage_options=self._storage_options,
+            timeout=timeout,
+            timestamp=self._timestamp,
+            user_name=self._user_name,
+        )
+
+    def list_functions(self) -> list[str]:
+        api = kube.client.CustomObjectsApi()
+        functions = api.list_namespaced_custom_object(
+            group='dash.ulagbulag.io',
+            plural='functions',
+            version='v1alpha1',
+            namespace=self._namespace,
+        )['items']
+
+        return [
+            function['metadata']['name']
+            for function in functions
+        ]
 
     async def _load_nats_channel(self):
         if self._nc is None:
