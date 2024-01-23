@@ -1,18 +1,23 @@
+import aiohttp
+import asyncio
 import base64
 import datetime
+import io
 import json
 import logging
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import deltalake as dt
 import inflection
 import kubernetes as kube
+import miniopy_async as minio
 import nats
 import polars as pl
 
 from openark import drawer
 
-Payload = bytes | bytearray | dict[str, Any]
+Payload = bytes | dict[str, Any]
 
 
 class OpenArkGlobalNamespace:
@@ -55,6 +60,8 @@ class OpenArkModel:
         name: str,
         version: int | None = None,
         storage_options: Dict[str, str] | None = None,
+        timestamp: str | None = None,
+        user_name: str | None = None,
     ) -> None:
         if 'AWS_ENDPOINT_URL' in storage_options:
             endpoint_url = storage_options['AWS_ENDPOINT_URL']
@@ -68,7 +75,13 @@ class OpenArkModel:
         self._table_name = inflection.underscore(name)
         self._table_uri = f's3a://{name}/metadata/'
         self._storage_options = storage_options
+        self._timestamp = (
+            timestamp or datetime.datetime.utcnow().isoformat()
+        ).replace(':', '-')
+        self._user_name = user_name or 'openark-py'
         self._version = version
+
+        self._minio: minio.Minio | None = None
 
     @classmethod
     def load_object_storage(
@@ -114,6 +127,81 @@ class OpenArkModel:
             storage_options=storage_options,
         )
 
+    def _load_minio_client(self) -> minio.Minio:
+        endpoint = urlparse(self._storage_options['AWS_ENDPOINT_URL'])
+
+        if self._minio is None:
+            self._minio = minio.Minio(
+                endpoint=endpoint.hostname,
+                access_key=self._storage_options['AWS_ACCESS_KEY_ID'],
+                secret_key=self._storage_options['AWS_SECRET_ACCESS_KEY'],
+                secure=not self._storage_options.get('AWS_ALLOW_HTTP', False),
+                region=self._storage_options['AWS_REGION'],
+            )
+        return self._minio
+
+    async def _build_message(
+        self,
+        value: Any = {},
+        payloads: dict[str, Payload] = {},
+    ) -> bytes:
+        return json.dumps({
+            'timestamp': f'{datetime.datetime.utcnow().isoformat()}z',
+            'payloads': await asyncio.gather(*(
+                self._put(key, value)
+                for key, value in payloads.items()
+            )),
+            'value': value,
+        }).encode('utf-8')
+
+    async def _get(
+        self,
+        key: str,
+        session: aiohttp.ClientSession | None = None,
+    ) -> bytes:
+        client = self._load_minio_client()
+
+        session_is_entered = session is None
+        if session_is_entered:
+            session = await aiohttp.ClientSession().__aenter__()
+
+        response = await client.get_object(
+            bucket_name=self._name,
+            object_name=key,
+            session=session,
+        )
+        content = await response.content.read()
+
+        if session_is_entered:
+            await session.__aexit__()
+        return content
+
+    async def _put(
+        self,
+        key: str,
+        value: Payload,
+    ) -> dict[str, Any]:
+        client = self._load_minio_client()
+
+        if isinstance(value, bytes):
+            data = value
+        else:
+            data = json.dumps(value).encode('utf-8')
+
+        raw_key = f'payloads/{self._user_name}/{self._timestamp}/{key}'
+        response = await client.put_object(
+            bucket_name=self._name,
+            object_name=raw_key,
+            data=io.BytesIO(data),
+            length=len(data),
+        )
+
+        return {
+            'key': response.object_name,
+            'model': self._name,
+            'storage': 'S3',
+        }
+
     def to_delta(self) -> dt.DeltaTable:
         return dt.DeltaTable(
             table_uri=self._table_uri,
@@ -131,11 +219,11 @@ class OpenArkModel:
 class OpenArkModelChannel:
     def __init__(
         self,
-        name: str,
+        model: OpenArkModel,
         nc: nats.NATS,
         queued: bool,
     ) -> None:
-        self._name = name
+        self._model = model
         self._nc = nc
         self._queued = queued
         self._reply = ''
@@ -146,17 +234,21 @@ class OpenArkModelChannel:
     def publish(self) -> 'OpenArkModelPublisher':
         return OpenArkModelPublisher(self)
 
+    @property
+    def name(self) -> str:
+        return self._model._name
+
     async def request(
         self,
-        payloads: list[Payload] = [],
         value: Any = {},
+        payloads: dict[str, Payload] = {},
         timeout: float = 10,
     ) -> Any:
         response = await self._nc.request(
-            subject=self._name,
-            payload=_build_message(
-                payloads=payloads,
+            subject=self.name,
+            payload=await self._model._build_message(
                 value=value,
+                payloads=payloads,
             ),
             timeout=timeout,
         )
@@ -178,13 +270,14 @@ class OpenArkModelPublisher:
 
     async def send_one(
         self,
-        payloads: list[Payload] = [],
         value: Any = {},
+        payloads: dict[str, Payload] = {},
     ) -> None:
         return await self._channel._nc.publish(
-            subject=self._channel._name,
-            payload=_build_message(
+            subject=self._channel.name,
+            payload=await self._channel._model._build_message(
                 value=value,
+                payloads=payloads,
             ),
             reply=self._channel._reply,
         )
@@ -201,8 +294,8 @@ class OpenArkModelSubscriber:
     async def __anext__(self) -> Any:
         if self._subscriber is None:
             self._subscriber = await self._channel._nc.subscribe(
-                subject=self._channel._name,
-                queue=self._channel._name if self._channel._queued else '',
+                subject=self._channel.name,
+                queue=self._channel.name if self._channel._queued else '',
             )
 
         while True:
@@ -261,14 +354,3 @@ def _load_models(kube: kube.client.CustomObjectsApi, namespace: str) -> list[tup
 def _get_storage_target(storage: dict[str, Any]) -> Any:
     child = storage['cloned'] if 'cloned' in storage else storage['owned']
     return child['target']
-
-
-def _build_message(
-    payloads: list[Payload] = [],
-    value: Any = {},
-) -> bytes:
-    return json.dumps({
-        'timestamp': datetime.datetime.utcnow().isoformat() + 'z',
-        'payloads': payloads,
-        'value': value,
-    }).encode('utf-8')

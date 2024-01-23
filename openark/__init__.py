@@ -1,3 +1,4 @@
+import datetime
 import os
 from typing import Optional
 
@@ -70,6 +71,8 @@ class OpenArk:
             'AWS_REGION': os.environ['AWS_REGION'],
             'AWS_SECRET_ACCESS_KEY': os.environ['AWS_SECRET_ACCESS_KEY'],
         }
+        self._timestamp = datetime.datetime.utcnow().isoformat()
+        self._user_name = _get_user_name()
 
     @classmethod
     def get_global_instance(cls) -> Optional['OpenArk']:
@@ -79,11 +82,13 @@ class OpenArk:
         return OpenArkModel(
             name=name,
             storage_options=self._storage_options,
+            timestamp=self._timestamp,
+            user_name=self._user_name,
         )
 
     async def get_model_channel(self, name: str) -> OpenArkModelChannel:
         return OpenArkModelChannel(
-            name=name,
+            model=self.get_model(name),
             nc=await self._load_nats_channel(),
             queued=os.environ.get('PIPE_QUEUE_GROUP', 'false') == 'true',
         )
@@ -132,6 +137,11 @@ def _get_current_namespace() -> str:
         return active_context['context']['namespace']
     except KeyError:
         return 'default'
+
+
+def _get_user_name() -> str | None:
+    # TODO: to be implemented
+    return None
 
 
 def _load_nats_token() -> str:

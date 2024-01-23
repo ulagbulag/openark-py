@@ -9,7 +9,7 @@ from openark import OpenArk
 
 async def request_one_shot(ark: OpenArk, model: str, data: Any) -> None:
     mc = await ark.get_model_channel(model)
-    response = await mc.request(data)
+    response = await mc.request(value=data, payloads={'value': data})
     print(response)
 
 
