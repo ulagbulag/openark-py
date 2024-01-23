@@ -1,4 +1,5 @@
 import base64
+import datetime
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -10,6 +11,8 @@ import nats
 import polars as pl
 
 from openark import drawer
+
+Payload = bytes | bytearray | dict[str, Any]
 
 
 class OpenArkGlobalNamespace:
@@ -143,6 +146,22 @@ class OpenArkModelChannel:
     def publish(self) -> 'OpenArkModelPublisher':
         return OpenArkModelPublisher(self)
 
+    async def request(
+        self,
+        payloads: list[Payload] = [],
+        value: Any = {},
+        timeout: float = 10,
+    ) -> Any:
+        response = await self._nc.request(
+            subject=self._name,
+            payload=_build_message(
+                payloads=payloads,
+                value=value,
+            ),
+            timeout=timeout,
+        )
+        return json.loads(response.data)
+
 
 class OpenArkModelPublisher:
     def __init__(
@@ -157,10 +176,16 @@ class OpenArkModelPublisher:
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         pass
 
-    async def send_one(self, message: Any) -> None:
+    async def send_one(
+        self,
+        payloads: list[Payload] = [],
+        value: Any = {},
+    ) -> None:
         return await self._channel._nc.publish(
             subject=self._channel._name,
-            payload=json.dumps(message).encode('utf-8'),
+            payload=_build_message(
+                value=value,
+            ),
             reply=self._channel._reply,
         )
 
@@ -236,3 +261,14 @@ def _load_models(kube: kube.client.CustomObjectsApi, namespace: str) -> list[tup
 def _get_storage_target(storage: dict[str, Any]) -> Any:
     child = storage['cloned'] if 'cloned' in storage else storage['owned']
     return child['target']
+
+
+def _build_message(
+    payloads: list[Payload] = [],
+    value: Any = {},
+) -> bytes:
+    return json.dumps({
+        'timestamp': datetime.datetime.utcnow().isoformat() + 'z',
+        'payloads': payloads,
+        'value': value,
+    }).encode('utf-8')
