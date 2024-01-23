@@ -54,3 +54,7 @@ Changelog = "https://github.com/ulagbulag/openark-py/blob/master/CHANGELOG.md"
 Documentation = "https://github.com/ulagbulag/openark-py"
 Homepage = "https://github.com/ulagbulag/openark-py"
 Repository = "https://github.com/ulagbulag/openark-py.git"
+
+[tool.hatch.build]
+include = ["/LICENSE", "/openark/", "/pyproject.toml", "/README.md"]
+exclude = ["**/__pycache__"]
