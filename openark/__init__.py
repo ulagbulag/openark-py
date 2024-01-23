@@ -9,7 +9,7 @@ import nats
 
 from openark.function import OpenArkFunction
 from openark.magic import OpenArkMagic
-from openark.model import OpenArkGlobalNamespace, OpenArkModel, OpenArkModelChannel
+from openark.model import OpenArkGlobalNamespace, OpenArkModel, OpenArkModelChannel, get_timestamp
 
 
 __all__ = [
@@ -73,7 +73,7 @@ class OpenArk:
             'AWS_REGION': os.environ['AWS_REGION'],
             'AWS_SECRET_ACCESS_KEY': os.environ['AWS_SECRET_ACCESS_KEY'],
         }
-        self._timestamp = datetime.datetime.utcnow().isoformat()
+        self._timestamp = get_timestamp()
         self._user_name = _get_user_name()
 
     @classmethod

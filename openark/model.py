@@ -5,7 +5,7 @@ import datetime
 import io
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TypeVar
 from urllib.parse import urlparse
 
 import deltalake as dt
@@ -18,6 +18,7 @@ import polars as pl
 from openark import drawer
 
 Payload = bytes | dict[str, Any]
+T = TypeVar('T')
 
 
 class OpenArkGlobalNamespace:
@@ -75,9 +76,7 @@ class OpenArkModel:
         self._table_name = inflection.underscore(name)
         self._table_uri = f's3a://{name}/metadata/'
         self._storage_options = storage_options
-        self._timestamp = (
-            timestamp or datetime.datetime.utcnow().isoformat()
-        ).replace(':', '-')
+        self._timestamp = (timestamp or get_timestamp()).replace(':', '-')
         self._user_name = user_name or 'openark-py'
         self._version = version
 
@@ -145,13 +144,21 @@ class OpenArkModel:
         value: Any = {},
         payloads: dict[str, Payload] = {},
     ) -> bytes:
+        if not isinstance(value, dict):
+            value = {
+                'value': value,
+            }
+
+        payloads_dumped = await asyncio.gather(*(
+            self._put(key, value)
+            for key, value in payloads.items()
+        ))
+        payloads_map = dict(zip(payloads, payloads_dumped))
+
         return json.dumps({
-            'timestamp': f'{datetime.datetime.utcnow().isoformat()}z',
-            'payloads': await asyncio.gather(*(
-                self._put(key, value)
-                for key, value in payloads.items()
-            )),
-            'value': value,
+            '__timestamp': get_timestamp(),
+            '__payloads': payloads_dumped,
+            **_replace_payloads(value, payloads_map),
         }).encode('utf-8')
 
     async def _get(
@@ -354,3 +361,30 @@ def _load_models(kube: kube.client.CustomObjectsApi, namespace: str) -> list[tup
 def _get_storage_target(storage: dict[str, Any]) -> Any:
     child = storage['cloned'] if 'cloned' in storage else storage['owned']
     return child['target']
+
+
+def _replace_payloads(data: T, payloads: dict[str, dict[str, Any]]) -> T:
+    if isinstance(data, tuple) or isinstance(data, list):
+        return [
+            _replace_payloads(item, payloads)
+            for item in data
+        ]
+    elif isinstance(data, dict):
+        return {
+            key: _replace_payloads(value, payloads)
+            for key, value in data.items()
+        }
+    elif isinstance(data, str):
+        scheme = '@data:'
+        if isinstance(data, str) and data.startswith(scheme):
+            type_, *key = data[len(scheme):].split(',')
+            key = ','.join(key)
+            return f'{scheme}{type_},{payloads[key]["key"]}'
+        else:
+            return data
+    else:
+        return data
+
+
+def get_timestamp() -> str:
+    return f'{datetime.datetime.utcnow().isoformat()}Z'
