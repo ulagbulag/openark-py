@@ -7,7 +7,6 @@ class NatsMessenger(Messenger):
     def __init__(self, nc: nats.NATS) -> None:
         super().__init__()
         self._nc = nc
-        self._subs = {}
 
     def publisher(
         self,
@@ -55,10 +54,10 @@ class NatsPublisher(Publisher):
         self._topic = topic
         self._reply = reply or ''
 
-    async def __call__(self, data: bytes) -> None:
+    async def __call__(self, data: str) -> None:
         return await self._nc.publish(
             subject=self._topic,
-            payload=data,
+            payload=data.encode('utf-8'),
             reply=self._reply,
         )
 
@@ -75,10 +74,10 @@ class NatsService(Service):
         self._topic = topic
         self._timeout_sec = timeout_sec or 10.0
 
-    async def __call__(self, data: bytes) -> str:
+    async def __call__(self, data: str) -> str:
         msg = await self._nc.request(
             subject=self._topic,
-            payload=data,
+            payload=data.encode('utf-8'),
             timeout=self._timeout_sec,
         )
         return msg.data.decode('utf-8')

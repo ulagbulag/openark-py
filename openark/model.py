@@ -146,7 +146,7 @@ class OpenArkModel:
         self,
         value: Any = {},
         payloads: dict[str, Payload] = {},
-    ) -> bytes:
+    ) -> str:
         if not isinstance(value, dict):
             value = {
                 'value': value,
@@ -162,7 +162,7 @@ class OpenArkModel:
             '__timestamp': get_timestamp(),
             '__payloads': payloads_dumped,
             **_replace_payloads(value, payloads_map),
-        }).encode('utf-8')
+        })
 
     async def _get(
         self,

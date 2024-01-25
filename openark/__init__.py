@@ -187,35 +187,11 @@ class OpenArk:
 
     async def _load_messenger_ros2(self) -> Messenger | None:
         try:
-            import nats
-
             from openark.messenger.ros2 import Ros2Messenger as Messenger
         except ImportError:
             return None
 
-        addrs = []
-        for addr in os.environ['NATS_ADDRS'].split(','):
-            addr = addr.strip()
-            if len(addr) == 0:
-                continue
-
-            _PROTOCOL = 'nats://'
-            if not addr.startswith(_PROTOCOL):
-                addr = f'{_PROTOCOL}{addr}:4222'
-            addrs.append(addr)
-
-        if len(addrs) == 0:
-            raise ValueError(
-                'no NATS addrs are given (no "NATS_ADDRS" environment variable)'
-            )
-
-        return Messenger(
-            nc=await nats.connect(
-                servers=addrs,
-                user=os.environ['NATS_ACCOUNT'],
-                password=_load_nats_token(),
-            ),
-        )
+        return Messenger()
 
 
 def _get_current_namespace() -> str:
