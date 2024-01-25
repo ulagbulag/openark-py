@@ -12,10 +12,10 @@ import deltalake as dt
 import inflection
 import kubernetes as kube
 import miniopy_async as minio
-import nats
 import polars as pl
 
 from openark import drawer
+from openark.messenger import Messenger
 
 Payload = bytes | dict[str, Any]
 T = TypeVar('T')
@@ -33,8 +33,11 @@ class OpenArkGlobalNamespace:
                 continue
 
             logging.info(f'Loading model: {model._name}')
-            df = model.to_polars()
-            if df.is_empty():
+            try:
+                df = model.to_polars()
+            except dt.exceptions.TableNotFoundError:
+                df = None
+            if df is None or df.is_empty():
                 logging.warn(
                     f'Model {model._name} is not inited yet on {storage_name}; skipping...'
                 )
@@ -226,92 +229,87 @@ class OpenArkModel:
 class OpenArkModelChannel:
     def __init__(
         self,
+        messenger: Messenger,
         model: OpenArkModel,
-        nc: nats.NATS,
         queued: bool,
     ) -> None:
+        self._messenger = messenger
         self._model = model
-        self._nc = nc
         self._queued = queued
-        self._reply = ''
+        self._reply: str | None = None
+        self._service_timeout_sec: float | None = 10.0
 
-    def __aiter__(self) -> 'OpenArkModelSubscriber':
-        return OpenArkModelSubscriber(self)
+        self._publisher = self._messenger.publisher(
+            topic=self.name,
+            reply=self._reply,
+        )
+        self._service = self._messenger.service(
+            topic=self.name,
+            timeout_sec=self._service_timeout_sec,
+        )
+        self._subscriber = self._messenger.subscriber(
+            topic=self.name,
+            queue=self.name if self._queued else None,
+        )
 
-    def publish(self) -> 'OpenArkModelPublisher':
-        return OpenArkModelPublisher(self)
+    def __aiter__(self) -> 'OpenArkModelChannel':
+        return self
 
-    @property
-    def name(self) -> str:
-        return self._model._name
+    async def __anext__(self) -> Any:
+        if self._subscriber is None:
+            raise Exception(
+                f'Subscribing is not supported on this messenger type'
+            )
 
-    async def request(
+        while True:
+            msg = await self._subscriber.__anext__()
+            try:
+                decoded = json.loads(msg)
+            except json.decoder.JSONDecodeError:
+                continue
+            return decoded
+
+    async def __call__(
         self,
         value: Any = {},
         payloads: dict[str, Payload] = {},
-        timeout: float = 10,
-    ) -> Any:
-        response = await self._nc.request(
-            subject=self.name,
-            payload=await self._model._build_message(
+    ) -> None:
+        if self._service is None:
+            raise Exception(f'Service is not supported on this messenger type')
+
+        return await self._service(
+            data=await self._model._build_message(
                 value=value,
                 payloads=payloads,
             ),
-            timeout=timeout,
         )
-        return json.loads(response.data)
 
-
-class OpenArkModelPublisher:
-    def __init__(
-        self,
-        channel: OpenArkModelChannel,
-    ) -> None:
-        self._channel = channel
-
-    def __enter__(self) -> 'OpenArkModelPublisher':
+    def __enter__(self) -> 'OpenArkModelChannel':
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         pass
 
-    async def send_one(
+    async def publish(
         self,
         value: Any = {},
         payloads: dict[str, Payload] = {},
     ) -> None:
-        return await self._channel._nc.publish(
-            subject=self._channel.name,
-            payload=await self._channel._model._build_message(
+        if self._publisher is None:
+            raise Exception(
+                f'Publishing is not supported on this messenger type'
+            )
+
+        return await self._publisher(
+            data=await self._model._build_message(
                 value=value,
                 payloads=payloads,
             ),
-            reply=self._channel._reply,
         )
 
-
-class OpenArkModelSubscriber:
-    def __init__(
-        self,
-        channel: OpenArkModelChannel,
-    ) -> None:
-        self._channel = channel
-        self._subscriber = None
-
-    async def __anext__(self) -> Any:
-        if self._subscriber is None:
-            self._subscriber = await self._channel._nc.subscribe(
-                subject=self._channel.name,
-                queue=self._channel.name if self._channel._queued else '',
-            )
-
-        while True:
-            msg = await self._subscriber.next_msg(timeout=None)
-            try:
-                decoded = json.loads(msg.data.decode('utf-8'))
-            except json.decoder.JSONDecodeError:
-                continue
-            return decoded
+    @property
+    def name(self) -> str:
+        return self._model._name
 
 
 def _load_models(kube: kube.client.CustomObjectsApi, namespace: str) -> list[tuple[OpenArkModel, str]]:

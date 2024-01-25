@@ -1,14 +1,14 @@
-import datetime
 import os
 from typing import Optional
 
 from dotenv import load_dotenv
 from IPython import get_ipython
+import inflection
 import kubernetes as kube
-import nats
 
 from openark.function import OpenArkFunction
 from openark.magic import OpenArkMagic
+from openark.messenger import Messenger
 from openark.model import OpenArkGlobalNamespace, OpenArkModel, OpenArkModelChannel, get_timestamp
 
 
@@ -65,8 +65,9 @@ class OpenArk:
                 ipy.register_magics(OpenArkMagic)
 
         self._global_namespace: OpenArkGlobalNamespace | None = None
+        self._messenger: Messenger | None = None
+        self._messenger_type = os.environ.get('PIPE_DEFAULT_MESSENGER')
         self._namespace = 'dash' or _get_current_namespace()
-        self._nc: nats.NATS | None = None
         self._storage_options = {
             'AWS_ACCESS_KEY_ID': os.environ['AWS_ACCESS_KEY_ID'],
             'AWS_ENDPOINT_URL': os.environ['AWS_ENDPOINT_URL'],
@@ -90,8 +91,8 @@ class OpenArk:
 
     async def get_model_channel(self, name: str) -> OpenArkModelChannel:
         return OpenArkModelChannel(
+            messenger=await self._load_messenger(),
             model=self.get_model(name),
-            nc=await self._load_nats_channel(),
             queued=os.environ.get('PIPE_QUEUE_GROUP', 'false') == 'true',
         )
 
@@ -115,7 +116,7 @@ class OpenArk:
 
         return OpenArkFunction(
             data=data,
-            nc=await self._load_nats_channel(),
+            messenger=await self._load_messenger(),
             queued=os.environ.get('PIPE_QUEUE_GROUP', 'false') == 'true',
             storage_options=self._storage_options,
             timeout=timeout,
@@ -137,30 +138,84 @@ class OpenArk:
             for function in functions
         ]
 
-    async def _load_nats_channel(self):
-        if self._nc is None:
-            addrs = []
-            for addr in os.environ['NATS_ADDRS'].split(','):
-                addr = addr.strip()
-                if len(addr) == 0:
-                    continue
-
-                _PROTOCOL = 'nats://'
-                if not addr.startswith(_PROTOCOL):
-                    addr = f'{_PROTOCOL}{addr}:4222'
-                addrs.append(addr)
-
-            if len(addrs) == 0:
-                raise ValueError(
-                    'no NATS addrs are given (no "NATS_ADDRS" environment variable)'
+    async def _load_messenger(self) -> Messenger:
+        if self._messenger is None:
+            messenger_gen_name = f'_load_messenger_{inflection.underscore(self._messenger_type)}'
+            if not hasattr(self, messenger_gen_name):
+                raise Exception(
+                    f'Unsupported messenger type: {self._messenger_type}'
                 )
 
-            self._nc = await nats.connect(
+            self._messenger = await getattr(self, messenger_gen_name)()
+            if self._messenger is None:
+                raise Exception(
+                    f'Messenger driver is not installed: {self._messenger_type}'
+                )
+        return self._messenger
+
+    async def _load_messenger_nats(self) -> Messenger | None:
+        try:
+            import nats
+
+            from openark.messenger.nats import NatsMessenger as Messenger
+        except ImportError:
+            return None
+
+        addrs = []
+        for addr in os.environ['NATS_ADDRS'].split(','):
+            addr = addr.strip()
+            if len(addr) == 0:
+                continue
+
+            _PROTOCOL = 'nats://'
+            if not addr.startswith(_PROTOCOL):
+                addr = f'{_PROTOCOL}{addr}:4222'
+            addrs.append(addr)
+
+        if len(addrs) == 0:
+            raise ValueError(
+                'no NATS addrs are given (no "NATS_ADDRS" environment variable)'
+            )
+
+        return Messenger(
+            nc=await nats.connect(
                 servers=addrs,
                 user=os.environ['NATS_ACCOUNT'],
                 password=_load_nats_token(),
+            ),
+        )
+
+    async def _load_messenger_ros2(self) -> Messenger | None:
+        try:
+            import nats
+
+            from openark.messenger.ros2 import Ros2Messenger as Messenger
+        except ImportError:
+            return None
+
+        addrs = []
+        for addr in os.environ['NATS_ADDRS'].split(','):
+            addr = addr.strip()
+            if len(addr) == 0:
+                continue
+
+            _PROTOCOL = 'nats://'
+            if not addr.startswith(_PROTOCOL):
+                addr = f'{_PROTOCOL}{addr}:4222'
+            addrs.append(addr)
+
+        if len(addrs) == 0:
+            raise ValueError(
+                'no NATS addrs are given (no "NATS_ADDRS" environment variable)'
             )
-        return self._nc
+
+        return Messenger(
+            nc=await nats.connect(
+                servers=addrs,
+                user=os.environ['NATS_ACCOUNT'],
+                password=_load_nats_token(),
+            ),
+        )
 
 
 def _get_current_namespace() -> str:

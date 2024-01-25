@@ -1,15 +1,14 @@
 from typing import Any, Coroutine, Dict
 
-import nats
-
 from openark.model import OpenArkModel, OpenArkModelChannel, Payload
+from openark.messenger import Messenger
 
 
 class OpenArkFunction:
     def __init__(
         self,
         data: dict[str, Any],
-        nc: nats.NATS,
+        messenger: Messenger,
         queued: bool,
         timeout: int,
         storage_options: Dict[str, str] | None = None,
@@ -19,23 +18,23 @@ class OpenArkFunction:
         self._timeout = timeout
 
         self._input = OpenArkModelChannel(
+            messenger=messenger,
             model=OpenArkModel(
                 name=data['spec']['input'],
                 storage_options=storage_options,
                 timestamp=timestamp,
                 user_name=user_name,
             ),
-            nc=nc,
             queued=queued,
         )
         self._output = OpenArkModelChannel(
+            messenger=messenger,
             model=OpenArkModel(
                 name=data['spec']['output'],
                 storage_options=storage_options,
                 timestamp=timestamp,
                 user_name=user_name,
             ),
-            nc=nc,
             queued=queued,
         )
 
@@ -44,7 +43,7 @@ class OpenArkFunction:
         payloads: dict[str, Payload] = {},
         **value: dict[str, Any],
     ) -> Coroutine[Any, Any, Any]:
-        return self._input.request(
+        return self._input(
             value=value,
             payloads=payloads,
         )

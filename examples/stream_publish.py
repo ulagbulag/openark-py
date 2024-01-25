@@ -8,7 +8,7 @@ from openark import OpenArk
 
 async def loop_publish(ark: OpenArk, model: str) -> None:
     mc = await ark.get_model_channel(model)
-    with mc.publish() as pub:
+    with mc.publisher() as pub:
         for index in itertools.count(start=0):
             data = {
                 'kind': 'stream_publish_example',
