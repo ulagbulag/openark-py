@@ -40,8 +40,8 @@ class OpenArkFunction:
 
     def __call__(
         self, /,
+        value: Any = {},
         payloads: dict[str, Payload] = {},
-        **value: dict[str, Any],
     ) -> Coroutine[Any, Any, Any]:
         return self._input(
             value=value,

@@ -22,13 +22,14 @@ async def call_function(
 
     function = await ark.get_function(function_name)
     output = await function(
-        **value,
+        value=value,
         payloads=payloads,
     )
     print(output)
 
 
 if __name__ == '__main__':
+    # define command-line parameters
     parser = argparse.ArgumentParser(
         prog='OpenARK',
         description='OpenARK Python',
@@ -49,6 +50,7 @@ if __name__ == '__main__':
         help='function payload files',
     )
 
+    # parse command-line parameters
     args = parser.parse_args()
     ark = OpenArk()
 

@@ -14,6 +14,7 @@ async def request_one_shot(ark: OpenArk, model: str, data: Any) -> None:
 
 
 if __name__ == '__main__':
+    # define command-line parameters
     parser = argparse.ArgumentParser(
         prog='OpenARK',
         description='OpenARK Python',
@@ -29,6 +30,7 @@ if __name__ == '__main__':
         help='json data',
     )
 
+    # parse command-line parameters
     args = parser.parse_args()
     ark = OpenArk()
 

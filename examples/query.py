@@ -5,6 +5,7 @@ from openark import OpenArk
 
 
 if __name__ == '__main__':
+    # define command-line parameters
     parser = argparse.ArgumentParser(
         prog='OpenARK',
         description='OpenARK Python',
@@ -15,6 +16,7 @@ if __name__ == '__main__':
         help='a SQL query to be executed',
     )
 
+    # parse command-line parameters
     args = parser.parse_args()
     ark = OpenArk()
     models = ark.get_global_namespace()
