@@ -1,3 +1,4 @@
+from copy import copy
 import os
 from typing import Optional
 from typing_extensions import deprecated
@@ -78,11 +79,24 @@ class OpenArk:
         self._timestamp = get_timestamp()
         self._user_name = _get_user_name()
 
+    def clone(self) -> 'OpenArk':
+        cloned = copy(self)
+        cloned.fuse_global_namespace()
+        cloned.fuse_messenger()
+        return cloned
+
+    @classmethod
+    def cloned(cls) -> 'OpenArk':
+        return cls().clone()
+
     async def close_messenger(self):
         if self._messenger is not None:
             messenger = self._messenger
             self._messenger = None
             await messenger.close()
+
+    def fuse_global_namespace(self):
+        self._global_namespace = None
 
     def fuse_messenger(self):
         self._messenger = None
