@@ -17,7 +17,7 @@ import subprocess
 
 load_dotenv()
 
-'''As a result, implemented 20fps'''
+'''As a result, implemented 20fps''' 
 
 def run_subprocess_async(image_path, function_name):
     print("Shot")

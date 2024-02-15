@@ -6,7 +6,7 @@ from pprint import pprint as print
 from openark import OpenArk
 
 
-# 본 코드는 call_function.py를 활용한 간단한 예제입니다. pub-nats-minio-face-detection-openark.py에서 실행하는 구조입니다.
+# 본 코드는 call_function.py를 활용한 간단한 예제입니다. pub_cctv_shotting_20fps.py에서 실행하는 구조입니다.
 
 async def publish_image(
     ark: OpenArk,
