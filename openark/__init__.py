@@ -55,7 +55,10 @@ class OpenArk:
         load_dotenv()
 
         # load Kubernetes configs
-        kube.config.load_kube_config()
+        if os.path.exists(os.path.expanduser(kube.config.kube_config.KUBE_CONFIG_DEFAULT_LOCATION)):
+            kube.config.load_config()
+        else:
+            kube.config.load_incluster_config()
 
         # register global instance
         if register_global:
