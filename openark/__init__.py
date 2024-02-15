@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from typing_extensions import deprecated
 
 from dotenv import load_dotenv
 from IPython import get_ipython
@@ -123,6 +124,24 @@ class OpenArk:
             timestamp=self._timestamp,
             user_name=self._user_name,
         )
+
+    def list_models(self) -> list[str]:
+        api = kube.client.CustomObjectsApi()
+        models = api.list_namespaced_custom_object(
+            group='dash.ulagbulag.io',
+            plural='models',
+            version='v1alpha1',
+            namespace=self._namespace,
+        )['items']
+
+        return [
+            model['metadata']['name']
+            for model in models
+        ]
+
+    @deprecated('use "list_models" instead')
+    def list_topics(self) -> list[str]:
+        return self.list_models()
 
     def list_functions(self) -> list[str]:
         api = kube.client.CustomObjectsApi()
