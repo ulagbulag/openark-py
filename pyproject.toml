@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 [project]
 name = "openark"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
     "deltalake",
     "inflection",
