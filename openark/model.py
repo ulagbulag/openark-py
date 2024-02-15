@@ -277,12 +277,13 @@ class OpenArkModelChannel:
         if self._service is None:
             raise Exception(f'Service is not supported on this messenger type')
 
-        return await self._service(
+        message = await self._service(
             data=await self._model._build_message(
                 value=value,
                 payloads=payloads,
             ),
         )
+        return json.loads(message)
 
     def __enter__(self) -> 'OpenArkModelChannel':
         return self
