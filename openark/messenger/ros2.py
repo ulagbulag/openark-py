@@ -37,9 +37,12 @@ class Ros2Messenger(Messenger):
         # spin node
         self._handle = asyncio.get_event_loop().create_task(_spin(self._node))
 
-    def __del__(self) -> None:
+    def close(self) -> None:
         if hasattr(self, '_handle'):
             self._handle.cancel()
+
+    def __del__(self) -> None:
+        self.close()
 
     def publisher(
         self,

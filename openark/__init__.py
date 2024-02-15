@@ -78,6 +78,15 @@ class OpenArk:
         self._timestamp = get_timestamp()
         self._user_name = _get_user_name()
 
+    async def close_messenger(self):
+        if self._messenger is not None:
+            messenger = self._messenger
+            self._messenger = None
+            await messenger.close()
+
+    def fuse_messenger(self):
+        self._messenger = None
+
     @classmethod
     def get_global_instance(cls) -> Optional['OpenArk']:
         return cls._GLOBAL

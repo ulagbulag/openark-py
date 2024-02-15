@@ -8,6 +8,9 @@ class NatsMessenger(Messenger):
         super().__init__()
         self._nc = nc
 
+    async def close(self) -> None:
+        return await self._nc.close()
+
     def publisher(
         self,
         topic: str,

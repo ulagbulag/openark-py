@@ -7,21 +7,24 @@ class Messenger(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    async def publisher(
+    async def close(self) -> None: ...
+
+    @abc.abstractmethod
+    def publisher(
         self,
         topic: str,
         reply: str | None,
     ) -> Optional['Publisher']: ...
 
     @abc.abstractmethod
-    async def service(
+    def service(
         self,
         topic: str,
         timeout_sec: float | None,
     ) -> Optional['Service']: ...
 
     @abc.abstractmethod
-    async def subscriber(
+    def subscriber(
         self,
         topic: str,
         queue: str | None,
