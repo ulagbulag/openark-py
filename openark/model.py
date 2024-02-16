@@ -5,7 +5,7 @@ import datetime
 import io
 import json
 import logging
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, Coroutine, Dict, Optional, TypeVar
 from urllib.parse import urlparse
 
 import deltalake as dt
@@ -83,6 +83,7 @@ class OpenArkModel:
         self._user_name = user_name or 'openark-py'
         self._version = version
 
+        self._endpoint = urlparse(self._storage_options['AWS_ENDPOINT_URL'])
         self._minio: minio.Minio | None = None
 
     @classmethod
@@ -129,12 +130,20 @@ class OpenArkModel:
             storage_options=storage_options,
         )
 
-    def _load_minio_client(self) -> minio.Minio:
-        endpoint = urlparse(self._storage_options['AWS_ENDPOINT_URL'])
+    async def get_payload(self, payload: dict[str, Any]) -> bytes:
+        async with aiohttp.ClientSession() as session:
+            return await self._get(
+                key=payload['key'],
+                session=session,
+            )
 
+    def get_payload_url(self, payload: dict[str, Any]) -> str:
+        return f'{self._endpoint.geturl()}/{payload["model"]}/{payload["key"]}'
+
+    def _load_minio_client(self) -> minio.Minio:
         if self._minio is None:
             self._minio = minio.Minio(
-                endpoint=endpoint.hostname,
+                endpoint=self._endpoint.hostname,
                 access_key=self._storage_options['AWS_ACCESS_KEY_ID'],
                 secret_key=self._storage_options['AWS_SECRET_ACCESS_KEY'],
                 secure=not self._storage_options.get('AWS_ALLOW_HTTP', False),
@@ -146,7 +155,7 @@ class OpenArkModel:
         self,
         value: Any = {},
         payloads: dict[str, Payload] = {},
-    ) -> str:
+    ) -> dict[str, Any]:
         if not isinstance(value, dict):
             value = {
                 'value': value,
@@ -158,11 +167,11 @@ class OpenArkModel:
         ))
         payloads_map = dict(zip(payloads, payloads_dumped))
 
-        return json.dumps({
+        return {
             '__timestamp': get_timestamp(),
             '__payloads': payloads_dumped,
             **_replace_payloads(value, payloads_map),
-        })
+        }
 
     async def _get(
         self,
@@ -273,17 +282,38 @@ class OpenArkModelChannel:
         self,
         value: Any = {},
         payloads: dict[str, Payload] = {},
+        load_payloads: bool = True,
     ) -> None:
         if self._service is None:
             raise Exception(f'Service is not supported on this messenger type')
 
-        message = await self._service(
-            data=await self._model._build_message(
-                value=value,
-                payloads=payloads,
-            ),
+        message = await self._model._build_message(
+            value=value,
+            payloads=payloads,
         )
-        return json.loads(message)
+        data = await self._service(
+            data=json.dumps(message),
+        )
+        message = json.loads(data)
+
+        if load_payloads:
+            async with aiohttp.ClientSession() as session:
+                async def load_payload(payload): return {
+                    **payload,
+                    'value': await self._model._get(
+                        key=payload['key'],
+                        session=session,
+                    ),
+                }
+                done, _ = await asyncio.wait([
+                    load_payload(payload)
+                    for payload in message['__payloads']
+                ])
+                message['__payloads'] = [
+                    task.result()
+                    for task in done
+                ]
+        return message
 
     def __enter__(self) -> 'OpenArkModelChannel':
         return self
@@ -291,22 +321,30 @@ class OpenArkModelChannel:
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         pass
 
+    def get_payload(self, payload: dict[str, Any]) -> Coroutine[Any, Any, bytes]:
+        return self._model.get_payload(payload)
+
+    def get_payload_url(self, payload: dict[str, Any]) -> str:
+        return self._model.get_payload_url(payload)
+
     async def publish(
         self,
         value: Any = {},
         payloads: dict[str, Payload] = {},
-    ) -> None:
+    ) -> dict[str, Any]:
         if self._publisher is None:
             raise Exception(
                 f'Publishing is not supported on this messenger type'
             )
 
-        return await self._publisher(
-            data=await self._model._build_message(
-                value=value,
-                payloads=payloads,
-            ),
+        message = await self._model._build_message(
+            value=value,
+            payloads=payloads,
         )
+        await self._publisher(
+            data=json.dumps(message),
+        )
+        return message
 
     @property
     def name(self) -> str:

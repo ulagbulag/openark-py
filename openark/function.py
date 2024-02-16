@@ -42,8 +42,16 @@ class OpenArkFunction:
         self, /,
         value: Any = {},
         payloads: dict[str, Payload] = {},
+        load_payloads: bool = True,
     ) -> Coroutine[Any, Any, Any]:
         return self._input(
             value=value,
             payloads=payloads,
+            load_payloads=load_payloads,
         )
+
+    def get_payload(self, payload: dict[str, Any]) -> Coroutine[Any, Any, Any]:
+        return self._input.get_payload(payload)
+
+    def get_payload_url(self, payload: dict[str, Any]) -> str:
+        return self._input.get_payload_url(payload)

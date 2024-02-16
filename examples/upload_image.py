@@ -1,18 +1,17 @@
 import argparse
 import asyncio
 import os
-from pprint import pprint as print
 
 from openark import OpenArk
 
 
-async def call_function(
+async def upload_image(
     ark: OpenArk,
     filename: str,
 ) -> None:
-    # define a function
-    function_name = 'image-classification'
-    function = await ark.get_function(function_name)
+    # define a model
+    model_name = 'image'
+    model = await ark.get_model_channel(model_name)
 
     # check file
     if not os.path.exists(filename):
@@ -30,15 +29,20 @@ async def call_function(
         "images": [f"@data:image,{payload_image_key}"],
     }
 
-    # call the function and get a response
-    output = await function(
+    # send the image
+    message = await model.publish(
         input,
         payloads=payloads,
-        load_payloads=False,  # do not load images
     )
 
-    # print the output values
-    print(output)
+    # load image
+    image_payload = message['__payloads'][0]
+    image = await model.get_payload(image_payload)
+    image_url = model.get_payload_url(image_payload)
+
+    # print the output image's size and URL
+    print(f'image size: {len(image)}')
+    print(f'image url: {image_url}')
 
 
 if __name__ == '__main__':
@@ -57,4 +61,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     ark = OpenArk()
 
-    asyncio.run(call_function(ark, args.filename))
+    asyncio.run(upload_image(ark, args.filename))
