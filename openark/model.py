@@ -298,7 +298,7 @@ class OpenArkModelChannel:
         )
         message = json.loads(data)
 
-        if load_payloads:
+        if load_payloads and message['__payloads']:
             async with aiohttp.ClientSession() as session:
                 async def load_payload(payload): return {
                     **payload,
