@@ -133,6 +133,7 @@ class OpenArkModel:
     async def get_payload(self, payload: dict[str, Any]) -> bytes:
         async with aiohttp.ClientSession() as session:
             return await self._get(
+                model=payload['model'],
                 key=payload['key'],
                 session=session,
             )
@@ -176,6 +177,7 @@ class OpenArkModel:
     async def _get(
         self,
         key: str,
+        model: str | None = None,
         session: aiohttp.ClientSession | None = None,
     ) -> bytes:
         client = self._load_minio_client()
@@ -185,7 +187,7 @@ class OpenArkModel:
             session = await aiohttp.ClientSession().__aenter__()
 
         response = await client.get_object(
-            bucket_name=self._name,
+            bucket_name=model or self._name,
             object_name=key,
             session=session,
         )
@@ -301,6 +303,7 @@ class OpenArkModelChannel:
                 async def load_payload(payload): return {
                     **payload,
                     'value': await self._model._get(
+                        model=payload['model'],
                         key=payload['key'],
                         session=session,
                     ),
