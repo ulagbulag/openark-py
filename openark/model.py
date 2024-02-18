@@ -308,14 +308,10 @@ class OpenArkModelChannel:
                         session=session,
                     ),
                 }
-                done, _ = await asyncio.wait([
+                message['__payloads'] = await asyncio.gather(*(
                     load_payload(payload)
                     for payload in message['__payloads']
-                ])
-                message['__payloads'] = [
-                    task.result()
-                    for task in done
-                ]
+                ))
         return message
 
     def __enter__(self) -> 'OpenArkModelChannel':
