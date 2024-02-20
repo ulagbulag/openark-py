@@ -11,6 +11,7 @@ import kubernetes as kube
 from openark.function import OpenArkFunction
 from openark.magic import OpenArkMagic
 from openark.messenger import Messenger
+from openark.messenger.nats import is_drop_allowed as is_nats_drop_allowed
 from openark.model import OpenArkGlobalNamespace, OpenArkModel, OpenArkModelChannel, get_timestamp
 
 
@@ -222,11 +223,16 @@ class OpenArk:
                 'no NATS addrs are given (no "NATS_ADDRS" environment variable)'
             )
 
+        async def error_cb(e):
+            if type(e) is nats.aio.errors.ErrSlowConsumer:
+                pass
+
         return Messenger(
             nc=await nats.connect(
                 servers=addrs,
                 user=os.environ['NATS_ACCOUNT'],
                 password=_load_nats_token(),
+                error_cb=error_cb if is_nats_drop_allowed() else None,
             ),
         )
 

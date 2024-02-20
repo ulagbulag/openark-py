@@ -289,12 +289,12 @@ class OpenArkModelChannel:
             )
 
         while True:
-            msg = await self._subscriber.__anext__()
+            data = await self._subscriber.__anext__()
             try:
-                decoded = json.loads(msg)
+                message = json.loads(data)
             except json.decoder.JSONDecodeError:
                 continue
-            return decoded
+            return await self._load_payloads(message)
 
     async def __call__(
         self,
@@ -314,7 +314,10 @@ class OpenArkModelChannel:
         )
         message = json.loads(data)
 
-        if load_payloads and message['__payloads']:
+        return await self._load_payloads(message)
+
+    async def _load_payloads(self, message: dict[str, Any]) -> dict[str, Any]:
+        if message['__payloads']:
             async with aiohttp.ClientSession() as session:
                 async def load_payload(payload): return {
                     **payload,

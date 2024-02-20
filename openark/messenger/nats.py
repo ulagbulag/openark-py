@@ -1,3 +1,5 @@
+import os
+
 import nats
 
 from openark.messenger import Messenger, Publisher, Service, Subscriber
@@ -105,7 +107,14 @@ class NatsSubscriber(Subscriber):
             self._inner = await self._nc.subscribe(
                 subject=self._topic,
                 queue=self._queue,
+                pending_msgs_limit=1
+                if is_drop_allowed()
+                else nats.aio.subscription.DEFAULT_SUB_PENDING_MSGS_LIMIT,
             )
 
         msg = await self._inner.next_msg(timeout=None)
         return msg.data.decode('utf-8')
+
+
+def is_drop_allowed() -> bool:
+    return os.environ.get('NATS_ALLOW_DROP', 'false').lower() == 'true'
