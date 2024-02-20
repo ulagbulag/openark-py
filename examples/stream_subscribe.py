@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 from pprint import pprint as print
 
@@ -11,5 +12,19 @@ async def loop_subscribe(ark: OpenArk, model: str) -> None:
 
 
 if __name__ == '__main__':
+    # define command-line parameters
+    parser = argparse.ArgumentParser(
+        prog='OpenARK',
+        description='OpenARK Python',
+    )
+    parser.add_argument(
+        'model',
+        type=str,
+        help='model name',
+    )
+
+    # parse command-line parameters
+    args = parser.parse_args()
     ark = OpenArk()
-    asyncio.run(loop_subscribe(ark, 'footprint'))
+
+    asyncio.run(loop_subscribe(ark, args.model))
