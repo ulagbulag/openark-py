@@ -133,9 +133,8 @@ class OpenArkModel:
     async def get_payload(self, payload: dict[str, Any]) -> bytes:
         async with aiohttp.ClientSession() as session:
             return await self._get(
-                model=payload['model'],
-                key=payload['key'],
                 session=session,
+                payload=payload,
             )
 
     def get_payload_url(self, payload: dict[str, Any]) -> str:
@@ -176,8 +175,25 @@ class OpenArkModel:
 
     async def _get(
         self,
-        model: str,
-        key: str,
+        payload: dict[str, Any],
+        session: aiohttp.ClientSession | None = None,
+    ) -> bytes:
+        storage_type = payload['storage']
+        match storage_type:
+            case 'Passthrough' | None:
+                return payload['value']
+            case 'S3':
+                return await self._get_minio(
+                    payload=payload,
+                    session=session,
+                )
+            case _:
+                raise ValueError(
+                    f'Unsupported OpenARK storage type: {storage_type}')
+
+    async def _get_minio(
+        self,
+        payload: dict[str, Any],
         session: aiohttp.ClientSession | None = None,
     ) -> bytes:
         client = self._load_minio_client()
@@ -187,8 +203,8 @@ class OpenArkModel:
             session = await aiohttp.ClientSession().__aenter__()
 
         response = await client.get_object(
-            bucket_name=model,
-            object_name=key,
+            bucket_name=payload['model'],
+            object_name=payload['key'],
             session=session,
         )
         content = await response.content.read()
@@ -303,9 +319,8 @@ class OpenArkModelChannel:
                 async def load_payload(payload): return {
                     **payload,
                     'value': await self._model._get(
-                        model=payload['model'],
-                        key=payload['key'],
                         session=session,
+                        payload=payload,
                     ),
                 }
                 message['__payloads'] = await asyncio.gather(*(
