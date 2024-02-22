@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import os
 
 from openark import OpenArk
 
@@ -18,7 +19,7 @@ async def upload_image(
     # inspect image
     image_payload = message['__payloads'][0]
     image = await model.get_payload(image_payload)
-    image_filename = f'{save_dir}/{image_payload["key"]}'
+    image_filename = f'{save_dir}/{os.path.basename(image_payload["key"])}'
     image_url = model.get_payload_url(image_payload)
 
     # print the output image's size and URL
