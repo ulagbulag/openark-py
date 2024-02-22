@@ -92,7 +92,7 @@ class Ros2Publisher(Publisher):
 
         self._inner = None
 
-    async def __call__(self, data: str) -> None:
+    async def __call__(self, data: bytes | bytearray) -> None:
         if self._inner is None:
             self._inner = self._node.create_publisher(
                 topic=_parse_topic_name(self._topic),
@@ -101,7 +101,7 @@ class Ros2Publisher(Publisher):
             )
 
         msg = StringMessage()
-        msg.data = data
+        msg.data = data.decode('utf-8')
         return self._inner.publish(
             msg=msg,
         )
@@ -119,10 +119,10 @@ class Ros2Service(Service):
         self._topic = topic
         self._timeout_sec = timeout_sec or 10.0
 
-    async def __call__(self, data: bytes) -> str:
+    async def __call__(self, data: bytes | bytearray) -> bytes:
         return await self._node.request(
             subject=self._topic,
-            payload=data,
+            payload=data.decode('utf-8'),
             timeout=self._timeout_sec,
         )
 

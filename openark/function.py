@@ -6,8 +6,9 @@ from openark.messenger import Messenger
 
 class OpenArkFunction:
     def __init__(
-        self,
+        self, /,
         data: dict[str, Any],
+        encoder: str,
         messenger: Messenger,
         queued: bool,
         timeout: int,
@@ -18,6 +19,7 @@ class OpenArkFunction:
         self._timeout = timeout
 
         self._input = OpenArkModelChannel(
+            encoder=encoder,
             messenger=messenger,
             model=OpenArkModel(
                 name=data['spec']['input'],
@@ -28,6 +30,7 @@ class OpenArkFunction:
             queued=queued,
         )
         self._output = OpenArkModelChannel(
+            encoder=encoder,
             messenger=messenger,
             model=OpenArkModel(
                 name=data['spec']['output'],

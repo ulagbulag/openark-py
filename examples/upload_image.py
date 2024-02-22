@@ -15,7 +15,7 @@ async def upload_image(
 
     # check file
     if not os.path.exists(filename):
-        raise ValueError(f"Image file {filename:?} not found!")
+        raise ValueError(f"Image file {filename!r} not found!")
 
     # load payload files
     filename_ext = filename.split('.')[-1]

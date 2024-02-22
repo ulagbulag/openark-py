@@ -36,7 +36,7 @@ class Publisher(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    async def __call__(self, data: str) -> None: ...
+    async def __call__(self, data: bytes | bytearray) -> None: ...
 
 
 class Service(metaclass=abc.ABCMeta):
@@ -44,7 +44,7 @@ class Service(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    async def __call__(self, data: str) -> str: ...
+    async def __call__(self, data: bytes | bytearray) -> bytes: ...
 
 
 class Subscriber(metaclass=abc.ABCMeta):

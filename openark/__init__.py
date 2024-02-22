@@ -27,7 +27,7 @@ class OpenArk:
     _GLOBAL: 'OpenArk' = None
 
     def __new__(
-        cls,
+        cls, /,
         register_global: bool = True,
         reuse_global_if_registered: bool = True,
     ) -> 'OpenArk':
@@ -43,7 +43,7 @@ class OpenArk:
         return super(OpenArk, cls).__new__(cls)
 
     def __init__(
-        self,
+        self, /,
         register_global: bool = True,
         reuse_global_if_registered: bool = True,
     ) -> None:
@@ -70,9 +70,10 @@ class OpenArk:
             if ipy is not None:
                 ipy.register_magics(OpenArkMagic)
 
+        self._encoder = os.environ.get('PIPE_ENCODER', 'Json')
         self._global_namespace: OpenArkGlobalNamespace | None = None
         self._messenger: Messenger | None = None
-        self._messenger_type = os.environ.get('PIPE_DEFAULT_MESSENGER')
+        self._messenger_type = os.environ.get('PIPE_DEFAULT_MESSENGER', 'Nats')
         self._namespace = 'dash' or _get_current_namespace()
         self._storage_options = {
             'AWS_ACCESS_KEY_ID': os.environ['AWS_ACCESS_KEY_ID'],
@@ -80,6 +81,12 @@ class OpenArk:
             'AWS_REGION': os.environ['AWS_REGION'],
             'AWS_SECRET_ACCESS_KEY': os.environ['AWS_SECRET_ACCESS_KEY'],
         }
+        self._persistence = os.environ.get(
+            'PIPE_PERSISTENCE', 'false').lower() == 'true'
+        self._persistence_metadata = os.environ.get(
+            'PIPE_PERSISTENCE_METADATA', 'false').lower() == 'true'
+        self._queue_group = os.environ.get(
+            'PIPE_QUEUE_GROUP', 'false').lower() == 'true'
         self._timestamp = get_timestamp()
         self._user_name = _get_user_name()
 
@@ -119,9 +126,10 @@ class OpenArk:
 
     async def get_model_channel(self, name: str) -> OpenArkModelChannel:
         return OpenArkModelChannel(
+            encoder=self._encoder,
             messenger=await self._load_messenger(),
             model=self.get_model(name),
-            queued=os.environ.get('PIPE_QUEUE_GROUP', 'false') == 'true',
+            queued=self._queue_group,
         )
 
     def get_global_namespace(self) -> OpenArkGlobalNamespace:
@@ -145,7 +153,7 @@ class OpenArk:
         return OpenArkFunction(
             data=data,
             messenger=await self._load_messenger(),
-            queued=os.environ.get('PIPE_QUEUE_GROUP', 'false') == 'true',
+            queued=self._queue_group,
             storage_options=self._storage_options,
             timeout=timeout,
             timestamp=self._timestamp,

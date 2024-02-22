@@ -10,15 +10,16 @@ from openark import OpenArk
 
 async def publish_image(
     ark: OpenArk,
-    filename: str, # 파이썬 명령줄 인수를 위한 변수 선언 부분
-    function_name: str 
+    filename: str,  # 파이썬 명령줄 인수를 위한 변수 선언 부분
+    function_name: str
 ) -> None:
     # define a model
-    model = await ark.get_model_channel(function_name) # function_name은 NATS의  jubject name처럼 취급.
+    # function_name은 NATS의  jubject name처럼 취급.
+    model = await ark.get_model_channel(function_name)
 
     # check file
     if not os.path.exists(filename):
-        raise ValueError(f"Image file {filename:?} not found!")
+        raise ValueError(f"Image file {filename!r} not found!")
 
     # load payload files
     payload_image_key = 'detect-image.jpg'
@@ -64,4 +65,3 @@ if __name__ == '__main__':
     ark = OpenArk()
 
     asyncio.run(publish_image(ark, args.filename, args.function_name))
-

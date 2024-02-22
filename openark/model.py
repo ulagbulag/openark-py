@@ -11,10 +11,11 @@ from urllib.parse import urlparse
 import deltalake as dt
 import inflection
 import kubernetes as kube
+import msgpack
 import miniopy_async as minio
 import polars as pl
 
-from openark import drawer
+from openark import codec, drawer
 from openark.messenger import Messenger
 
 Payload = bytes | dict[str, Any]
@@ -60,7 +61,7 @@ class OpenArkGlobalNamespace:
 
 class OpenArkModel:
     def __init__(
-        self,
+        self, /,
         name: str,
         version: int | None = None,
         storage_options: Dict[str, str] | None = None,
@@ -255,11 +256,13 @@ class OpenArkModel:
 
 class OpenArkModelChannel:
     def __init__(
-        self,
+        self, /,
+        encoder: str,
         messenger: Messenger,
         model: OpenArkModel,
         queued: bool,
     ) -> None:
+        self._encoder = encoder
         self._messenger = messenger
         self._model = model
         self._queued = queued
@@ -290,9 +293,8 @@ class OpenArkModelChannel:
 
         while True:
             data = await self._subscriber.__anext__()
-            try:
-                message = json.loads(data)
-            except json.decoder.JSONDecodeError:
+            message = codec.loads(data)
+            if message is None:
                 continue
             return await self._load_payloads(message)
 
@@ -310,9 +312,9 @@ class OpenArkModelChannel:
             payloads=payloads,
         )
         data = await self._service(
-            data=json.dumps(message),
+            data=codec.dumps(message, codec=self._encoder),
         )
-        message = json.loads(data)
+        message = codec.loads(data)
 
         return await self._load_payloads(message)
 
@@ -359,7 +361,7 @@ class OpenArkModelChannel:
             payloads=payloads,
         )
         await self._publisher(
-            data=json.dumps(message),
+            data=codec.dumps(message, codec=self._encoder),
         )
         return message
 

@@ -59,10 +59,10 @@ class NatsPublisher(Publisher):
         self._topic = topic
         self._reply = reply or ''
 
-    async def __call__(self, data: str) -> None:
+    async def __call__(self, data: bytes | bytearray) -> None:
         return await self._nc.publish(
             subject=self._topic,
-            payload=data.encode('utf-8'),
+            payload=data,
             reply=self._reply,
         )
 
@@ -79,13 +79,13 @@ class NatsService(Service):
         self._topic = topic
         self._timeout_sec = timeout_sec or 10.0
 
-    async def __call__(self, data: str) -> str:
+    async def __call__(self, data: bytes | bytearray) -> bytes:
         msg = await self._nc.request(
             subject=self._topic,
-            payload=data.encode('utf-8'),
+            payload=data,
             timeout=self._timeout_sec,
         )
-        return msg.data.decode('utf-8')
+        return msg.data
 
 
 class NatsSubscriber(Subscriber):
