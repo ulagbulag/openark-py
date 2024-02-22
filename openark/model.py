@@ -316,7 +316,10 @@ class OpenArkModelChannel:
         )
         message = codec.loads(data)
 
-        return await self._load_payloads(message)
+        if load_payloads:
+            return await self._load_payloads(message)
+        else:
+            return message
 
     async def _load_payloads(self, message: dict[str, Any]) -> dict[str, Any]:
         if message['__payloads']:
