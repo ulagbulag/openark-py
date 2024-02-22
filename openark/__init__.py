@@ -151,6 +151,7 @@ class OpenArk:
         )
 
         return OpenArkFunction(
+            encoder=self._encoder,
             data=data,
             messenger=await self._load_messenger(),
             queued=self._queue_group,
