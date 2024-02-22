@@ -138,7 +138,7 @@ class OpenArkModel:
             )
 
     def get_payload_url(self, payload: dict[str, Any]) -> str:
-        return f'{self._endpoint.geturl()}/{payload["model"]}/{payload["key"]}'
+        return f'{self._endpoint.geturl()}/{payload["model"]}/{payload["path"]}'
 
     def _load_minio_client(self) -> minio.Minio:
         if self._minio is None:
@@ -165,12 +165,11 @@ class OpenArkModel:
             self._put(key, value)
             for key, value in payloads.items()
         ))
-        payloads_map = dict(zip(payloads, payloads_dumped))
 
         return {
             '__timestamp': get_timestamp(),
             '__payloads': payloads_dumped,
-            **_replace_payloads(value, payloads_map),
+            **value,
         }
 
     async def _get(
@@ -204,7 +203,7 @@ class OpenArkModel:
 
         response = await client.get_object(
             bucket_name=payload['model'],
-            object_name=payload['key'],
+            object_name=payload['path'],
             session=session,
         )
         content = await response.content.read()
@@ -234,8 +233,9 @@ class OpenArkModel:
         )
 
         return {
-            'key': response.object_name,
+            'key': key,
             'model': self._name,
+            'path': response.object_name,
             'storage': 'S3',
         }
 
@@ -282,7 +282,7 @@ class OpenArkModelChannel:
     def __aiter__(self) -> 'OpenArkModelChannel':
         return self
 
-    async def __anext__(self) -> Any:
+    async def __anext__(self) -> dict[str, Any]:
         if self._subscriber is None:
             raise Exception(
                 f'Subscribing is not supported on this messenger type'
@@ -415,29 +415,6 @@ def _load_models(kube: kube.client.CustomObjectsApi, namespace: str) -> list[tup
 def _get_storage_target(storage: dict[str, Any]) -> Any:
     child = storage['cloned'] if 'cloned' in storage else storage['owned']
     return child['target']
-
-
-def _replace_payloads(data: T, payloads: dict[str, dict[str, Any]]) -> T:
-    if isinstance(data, tuple) or isinstance(data, list):
-        return [
-            _replace_payloads(item, payloads)
-            for item in data
-        ]
-    elif isinstance(data, dict):
-        return {
-            key: _replace_payloads(value, payloads)
-            for key, value in data.items()
-        }
-    elif isinstance(data, str):
-        scheme = '@data:'
-        if isinstance(data, str) and data.startswith(scheme):
-            type_, *key = data[len(scheme):].split(',')
-            key = ','.join(key)
-            return f'{scheme}{type_},{payloads[key]["key"]}'
-        else:
-            return data
-    else:
-        return data
 
 
 def get_timestamp() -> str:

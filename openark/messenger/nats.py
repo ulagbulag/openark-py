@@ -102,7 +102,7 @@ class NatsSubscriber(Subscriber):
 
         self._inner = None
 
-    async def __anext__(self) -> str:
+    async def __anext__(self) -> bytes:
         if self._inner is None:
             self._inner = await self._nc.subscribe(
                 subject=self._topic,
@@ -113,7 +113,7 @@ class NatsSubscriber(Subscriber):
             )
 
         msg = await self._inner.next_msg(timeout=None)
-        return msg.data.decode('utf-8')
+        return msg.data
 
 
 def is_drop_allowed() -> bool:

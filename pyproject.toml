@@ -12,6 +12,7 @@ dependencies = [
     "kubernetes",
     "matplotlib",
     "miniopy-async",
+    "msgpack",
     "nats-py",
     "networkx",
     "polars[deltalake]",

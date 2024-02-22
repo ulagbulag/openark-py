@@ -142,7 +142,7 @@ class Ros2Subscriber(Subscriber):
         self._data_queue = Queue(maxsize=64)
         self._inner = None
 
-    async def __anext__(self) -> str:
+    async def __anext__(self) -> bytes:
         if self._inner is None:
             def callback(msg) -> None:
                 queue = self._data_queue
@@ -160,7 +160,7 @@ class Ros2Subscriber(Subscriber):
 
         while True:
             try:
-                return self._data_queue.get(timeout=_DEFAULT_SPIN_INTERVAL)
+                return self._data_queue.get(timeout=_DEFAULT_SPIN_INTERVAL).encode('utf-8')
             except Empty:
                 continue
 
