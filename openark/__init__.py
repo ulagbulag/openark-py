@@ -82,7 +82,7 @@ class OpenArk:
             'AWS_SECRET_ACCESS_KEY': os.environ['AWS_SECRET_ACCESS_KEY'],
         }
         self._persistence = os.environ.get(
-            'PIPE_PERSISTENCE', 'false').lower() == 'false'
+            'PIPE_PERSISTENCE', 'true').lower() == 'true'
         self._persistence_metadata = os.environ.get(
             'PIPE_PERSISTENCE_METADATA', 'false').lower() == 'true'
         self._queue_group = os.environ.get(
