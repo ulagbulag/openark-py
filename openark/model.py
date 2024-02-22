@@ -195,7 +195,14 @@ class OpenArkModel:
         self,
         payload: dict[str, Any],
         session: aiohttp.ClientSession | None = None,
-    ) -> bytes:
+    ) -> Optional[bytes]:
+        model = payload['model']
+        path = payload['path']
+
+        # check data
+        if model is None or path is None:
+            return payload
+
         client = self._load_minio_client()
 
         session_is_entered = session is None
