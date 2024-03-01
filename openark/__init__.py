@@ -4,7 +4,6 @@ from typing import Optional
 from typing_extensions import deprecated
 
 from dotenv import load_dotenv
-from IPython import get_ipython
 import inflection
 import kubernetes as kube
 
@@ -66,6 +65,7 @@ class OpenArk:
             type(self)._GLOBAL = self
 
             # register iPython magics
+            from IPython import get_ipython
             ipy = get_ipython()
             if ipy is not None:
                 ipy.register_magics(OpenArkMagic)

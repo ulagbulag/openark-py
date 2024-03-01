@@ -6,7 +6,7 @@ requires = ["hatchling"]
 name = "openark"
 version = "0.0.17"
 dependencies = [
-    "deltalake",
+    "deltalake>=0.15.3",
     "inflection",
     "ipython",
     "kubernetes",

@@ -8,10 +8,9 @@ import logging
 from typing import Any, Coroutine, Dict, Optional, TypeVar
 from urllib.parse import urlparse
 
-import deltalake as dt
+import deltalake as dl
 import inflection
 import kubernetes as kube
-import msgpack
 import miniopy_async as minio
 import polars as pl
 
@@ -24,39 +23,61 @@ T = TypeVar('T')
 
 class OpenArkGlobalNamespace:
     def __init__(self, namespace: str) -> None:
-        self._ctx = pl.SQLContext()
+        self._ctx_instance = pl.SQLContext()
         self._namespace = namespace
         self._kube = kube.client.CustomObjectsApi()
 
         # load models
+        self._models: dict[str, OpenArkModel] = {}
         for (model, storage_name) in _load_models(self._kube, self._namespace):
-            if model._table_name in self._ctx.tables():
+            if model._table_name in self._models:
                 continue
-
-            logging.info(f'Loading model: {model._name}')
+            
             try:
-                df = model.to_polars()
-            except dt.exceptions.TableNotFoundError:
-                df = None
-            if df is None or df.is_empty():
+                check_init = model.to_delta().version() > 0
+            except dl.exceptions.TableNotFoundError:
+                check_init = False
+            if not check_init:
                 logging.warn(
                     f'Model {model._name} is not inited yet on {storage_name}; skipping...'
                 )
                 continue
-            self._ctx.register(
+
+            logging.info(f'Loading model: {model._name}')
+            self._models[model._table_name] = model
+
+    def _build_ctx(self) -> pl.SQLContext:
+        ctx = pl.SQLContext()
+        for model in self._models.values():
+            ctx.register(
                 name=model._table_name,
-                frame=df,
+                frame=model.to_polars(),
             )
+        return ctx
 
-    def sql(self, query: str) -> pl.LazyFrame:
-        return self._ctx.execute(query)
+    def _ctx(self, /, refresh: bool = False) -> pl.SQLContext:
+        if self._ctx_instance is None or refresh:
+            self._ctx_instance = self._build_ctx()
+        return self._ctx_instance
 
-    def sql_and_draw(self, query: str, style: Optional[str] = None) -> None:
+    def sql(self, query: str, *, refresh: bool = False) -> pl.LazyFrame:
+        return self._ctx(refresh=refresh).execute(query)
+
+    def sql_and_draw(
+        self,
+        query: str,
+        style: Optional[str] = None,
+        *,
+        refresh: bool = False,
+    ) -> None:
         # collect data frame
-        lf = self.sql(query)
+        lf = self.sql(query, refresh=refresh)
 
         # draw
         drawer.draw(lf, style)
+
+    def update(self) -> None:
+        self._ctx_instance = self._build_ctx()
 
 
 class OpenArkModel:
@@ -247,15 +268,15 @@ class OpenArkModel:
             'storage': 'S3',
         }
 
-    def to_delta(self) -> dt.DeltaTable:
-        return dt.DeltaTable(
+    def to_delta(self) -> dl.DeltaTable:
+        return dl.DeltaTable(
             table_uri=self._table_uri,
             storage_options=self._storage_options,
             version=self._version,
         )
 
-    def to_polars(self) -> pl.DataFrame:
-        return pl.read_delta(
+    def to_polars(self) -> pl.LazyFrame:
+        return pl.scan_delta(
             source=self._table_uri,
             storage_options=self._storage_options,
         )
