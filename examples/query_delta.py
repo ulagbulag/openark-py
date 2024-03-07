@@ -21,5 +21,5 @@ if __name__ == '__main__':
     ark = OpenArk()
     models = ark.get_global_namespace()
 
-    df = models.sql(args.query).collect()
+    df = models.delta_sql(args.query).collect()
     print(df)

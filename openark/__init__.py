@@ -12,12 +12,16 @@ from openark.magic import OpenArkMagic
 from openark.messenger import Messenger
 from openark.messenger.nats import is_drop_allowed as is_nats_drop_allowed
 from openark.model import OpenArkGlobalNamespace, OpenArkModel, OpenArkModelChannel, get_timestamp
+from openark.network import OpenArkNetworkGraph
 
 
 __all__ = [
     'OpenArk',
     'OpenArkFunction',
+    'OpenArkGlobalNamespace',
     'OpenArkModel',
+    'OpenArkModelChannel',
+    'OpenArkNetworkGraph',
     'OpenArkStream',
 ]
 
@@ -130,6 +134,11 @@ class OpenArk:
             messenger=await self._load_messenger(),
             model=self.get_model(name),
             queued=self._queue_group,
+        )
+        
+    def get_network_graph(self) -> OpenArkNetworkGraph:
+        return OpenArkNetworkGraph(
+            
         )
 
     def get_global_namespace(self) -> OpenArkGlobalNamespace:

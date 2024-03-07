@@ -25,5 +25,5 @@ if __name__ == '__main__':
     ark = OpenArk()
     model = ark.get_model(args.model)
 
-    pl = model.to_polars()
+    pl = model.to_delta_polars()
     pl.write_csv(args.filename)

@@ -6,5 +6,5 @@ from openark import OpenArk
 if __name__ == '__main__':
     ark = OpenArk()
 
-    models = ark.list_topics()
+    models = ark.list_models()
     print(models)

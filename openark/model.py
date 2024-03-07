@@ -5,12 +5,15 @@ import datetime
 import io
 import json
 import logging
+import os
 from typing import Any, Coroutine, Dict, Optional, TypeVar
 from urllib.parse import urlparse
 
 import deltalake as dl
 import inflection
 import kubernetes as kube
+import lancedb
+from lancedb.table import LanceTable
 import miniopy_async as minio
 import polars as pl
 
@@ -23,7 +26,7 @@ T = TypeVar('T')
 
 class OpenArkGlobalNamespace:
     def __init__(self, namespace: str) -> None:
-        self._ctx_instance = pl.SQLContext()
+        self._delta_ctx_instance: pl.SQLContext = None
         self._namespace = namespace
         self._kube = kube.client.CustomObjectsApi()
 
@@ -32,7 +35,7 @@ class OpenArkGlobalNamespace:
         for (model, storage_name) in _load_models(self._kube, self._namespace):
             if model._table_name in self._models:
                 continue
-            
+
             try:
                 check_init = model.to_delta().version() > 0
             except dl.exceptions.TableNotFoundError:
@@ -46,24 +49,24 @@ class OpenArkGlobalNamespace:
             logging.info(f'Loading model: {model._name}')
             self._models[model._table_name] = model
 
-    def _build_ctx(self) -> pl.SQLContext:
+    def _build_delta_ctx(self) -> pl.SQLContext:
         ctx = pl.SQLContext()
         for model in self._models.values():
             ctx.register(
                 name=model._table_name,
-                frame=model.to_polars(),
+                frame=model.to_delta_polars(),
             )
         return ctx
 
-    def _ctx(self, /, refresh: bool = False) -> pl.SQLContext:
-        if self._ctx_instance is None or refresh:
-            self._ctx_instance = self._build_ctx()
-        return self._ctx_instance
+    def delta_ctx(self, /, refresh: bool = False) -> pl.SQLContext:
+        if self._delta_ctx_instance is None or refresh:
+            self._delta_ctx_instance = self._build_delta_ctx()
+        return self._delta_ctx_instance
 
-    def sql(self, query: str, *, refresh: bool = False) -> pl.LazyFrame:
-        return self._ctx(refresh=refresh).execute(query)
+    def delta_sql(self, query: str, *, refresh: bool = False) -> pl.LazyFrame:
+        return self.delta_ctx(refresh=refresh).execute(query)
 
-    def sql_and_draw(
+    def delta_sql_and_draw(
         self,
         query: str,
         style: Optional[str] = None,
@@ -71,13 +74,13 @@ class OpenArkGlobalNamespace:
         refresh: bool = False,
     ) -> None:
         # collect data frame
-        lf = self.sql(query, refresh=refresh)
+        lf = self.delta_sql(query, refresh=refresh)
 
         # draw
         drawer.draw(lf, style)
 
     def update(self) -> None:
-        self._ctx_instance = self._build_ctx()
+        self._delta_ctx_instance = self._build_delta_ctx()
 
 
 class OpenArkModel:
@@ -98,7 +101,7 @@ class OpenArkModel:
             storage_options.setdefault('AWS_S3_ALLOW_UNSAFE_RENAME', 'true')
 
         self._name = name
-        self._table_name = inflection.underscore(name)
+        self._table_name = inflection.underscore(name.replace('.', '_'))
         self._table_uri = f's3a://{name}/metadata/'
         self._storage_options = storage_options
         self._timestamp = (timestamp or get_timestamp()).replace(':', '-')
@@ -275,11 +278,31 @@ class OpenArkModel:
             version=self._version,
         )
 
-    def to_polars(self) -> pl.LazyFrame:
+    def to_delta_polars(self) -> pl.LazyFrame:
         return pl.scan_delta(
             source=self._table_uri,
             storage_options=self._storage_options,
         )
+
+    def to_lancedb(
+        self,
+        read_consistency_interval: Optional[datetime.timedelta] = datetime.timedelta(
+            seconds=5),
+    ) -> LanceTable:
+        # currently (lancedb==0.6.2), it uses env to configure
+        os.environ['AWS_ALLOW_HTTP'] = 'true' \
+            if self._storage_options.get('AWS_ALLOW_HTTP', False) \
+            else 'false'
+        os.environ.setdefault(
+            'AWS_ENDPOINT',
+            self._storage_options['AWS_ENDPOINT_URL'],
+        )
+
+        conn = lancedb.connect(
+            uri=f's3{self._table_uri[3:]}',
+            read_consistency_interval=read_consistency_interval,
+        )
+        return conn.open_table('metadata')
 
 
 class OpenArkModelChannel:
